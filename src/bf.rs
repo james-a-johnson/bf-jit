@@ -1,52 +1,9 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::slice::from_mut;
-use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum BFError {
-    #[error("Encountered an invalid instruction {0}")]
-    Instruction(char),
-    #[error("Encountered an unmatched bracket")]
-    Unmatched,
-    #[error("Encountered an IO error during execution")]
-    IO(#[from] std::io::Error),
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Bracket {
-    start: usize,
-    end: usize,
-}
-
-#[derive(PartialEq, Eq, Copy, Clone)]
-pub enum Instruction {
-    Right,
-    Left,
-    Add,
-    Sub,
-    Input,
-    Output,
-    Start,
-    Stop,
-}
-
-impl std::convert::TryFrom<char> for Instruction {
-    type Error = BFError;
-    fn try_from(value: char) -> Result<Self, Self::Error> {
-        match value {
-            '>' => Ok(Instruction::Right),
-            '<' => Ok(Instruction::Left),
-            '.' => Ok(Instruction::Output),
-            ',' => Ok(Instruction::Input),
-            '+' => Ok(Instruction::Add),
-            '-' => Ok(Instruction::Sub),
-            '[' => Ok(Instruction::Start),
-            ']' => Ok(Instruction::Stop),
-            _ => Err(BFError::Instruction(value)),
-        }
-    }
-}
+use crate::instruction::{Instruction, Bracket};
+use crate::err::BFError;
 
 pub struct BFTerp<'io> {
     instr: usize,
@@ -144,6 +101,10 @@ impl<'io> BFTerp<'io> {
             }
         }
         Ok((program, stack))
+    }
+
+    pub fn into_prog(self) -> Box<[Instruction]> {
+        self.program
     }
 }
 
