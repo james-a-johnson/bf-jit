@@ -1,21 +1,26 @@
 use crate::err::BFError;
 use crate::instruction::Instruction;
-use std::io::{Read, Write};
 use std::collections::{HashMap, VecDeque};
+use std::io::{Read, Write};
 use std::slice::from_mut;
 
 pub struct Interpreter<'io> {
-    instr: usize,
-    pointer: usize,
-    data: Vec<usize>,
-    program: Vec<Instruction>,
+    pub(crate) instr: usize,
+    pub(crate) pointer: usize,
+    pub(crate) data: Vec<usize>,
+    pub(crate) program: Vec<Instruction>,
     stack: HashMap<usize, usize>,
     stdin: &'io mut dyn Read,
     stdout: &'io mut dyn Write,
 }
 
 impl<'io> Interpreter<'io> {
-    pub fn new(prog: &str, size: usize, input: &'io mut dyn Read, output: &'io mut dyn Write) -> Result<Self, BFError> {
+    pub fn new(
+        prog: &str,
+        size: usize,
+        input: &'io mut dyn Read,
+        output: &'io mut dyn Write,
+    ) -> Result<Self, BFError> {
         let (program, stack) = Self::parse(prog)?;
         Ok(Self {
             instr: 0,
@@ -61,10 +66,10 @@ impl<'io> Interpreter<'io> {
             if index >= self.program.len() - 1 {
                 break;
             }
-            let new_inst = self.program[index].combine(&self.program[index+1]);
+            let new_inst = self.program[index].combine(&self.program[index + 1]);
             if let Some(instr) = new_inst {
                 self.program[index] = instr;
-                self.program.remove(index+1);
+                self.program.remove(index + 1);
             } else {
                 index += 1;
             }
@@ -72,7 +77,7 @@ impl<'io> Interpreter<'io> {
     }
     pub fn step(&mut self) -> Result<bool, BFError> {
         if self.instr == self.program.len() {
-            return Ok(true)
+            return Ok(true);
         }
         let data_ptr = &mut self.data[self.pointer];
         let mut input: u8 = 0;
@@ -80,26 +85,32 @@ impl<'io> Interpreter<'io> {
             Instruction::Alu(v) => *data_ptr = data_ptr.wrapping_add_signed(v),
             Instruction::Ptr(v) => self.pointer = self.pointer.wrapping_add_signed(v),
             Instruction::LoopStart => {
-                let jump = self.stack.get(&self.instr).expect("Parsing should ensure this");
+                let jump = self
+                    .stack
+                    .get(&self.instr)
+                    .expect("Parsing should ensure this");
                 if *data_ptr == 0 {
                     self.instr = *jump;
                 }
-            },
+            }
             Instruction::LoopEnd => {
-                let jump = self.stack.get(&self.instr).expect("Parsing should ensure this");
+                let jump = self
+                    .stack
+                    .get(&self.instr)
+                    .expect("Parsing should ensure this");
                 if *data_ptr != 0 {
                     self.instr = *jump;
                 }
-            },
+            }
             Instruction::Input => {
                 self.stdin.read_exact(from_mut(&mut input))?;
                 *data_ptr = input as usize;
-            },
+            }
             Instruction::Output => {
                 input = *data_ptr as u8;
                 self.stdout.write_all(from_mut(&mut input))?;
-            },
-            Instruction::Nop => {},
+            }
+            Instruction::Nop => {}
         }
         self.instr += 1;
         Ok(false)

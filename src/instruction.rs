@@ -6,7 +6,7 @@ pub enum Instruction {
     Output,
     LoopStart,
     LoopEnd,
-    Nop
+    Nop,
 }
 
 impl Instruction {
@@ -14,7 +14,31 @@ impl Instruction {
         match (*self, *other) {
             (Instruction::Ptr(m1), Instruction::Ptr(m2)) => Some(Instruction::Ptr(m1 + m2)),
             (Instruction::Alu(a1), Instruction::Alu(a2)) => Some(Instruction::Alu(a1 + a2)),
-            (_ ,_) => None,
+            (_, _) => None,
+        }
+    }
+
+    pub fn to_str(&self) -> String {
+        match *self {
+            Self::Ptr(v) => {
+                if v < 0 {
+                    format!("< {v}")
+                } else {
+                    format!("> {v}")
+                }
+            },
+            Self::Alu(v) => {
+                if v < 0 {
+                    format!("- {v}")
+                } else {
+                    format!("+ {v}")
+                }
+            },
+            Self::Input => ",".into(),
+            Self::Output => ".".into(),
+            Self::LoopStart => "[".into(),
+            Self::LoopEnd => "]".into(),
+            Self::Nop => " ".into(),
         }
     }
 }
