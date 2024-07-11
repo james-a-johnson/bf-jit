@@ -53,7 +53,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 }
             }
         }
-        if brackets.is_empty() {
+        if !brackets.is_empty() {
             return Err(BFError::Unmatched);
         }
 
