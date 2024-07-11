@@ -13,5 +13,11 @@ fn main() {
     let mut out = stdout().lock();
     let mut inp = stdin().lock();
     let mut bfterp = Interpreter::new(HELLO_WORLD, 0x100, &mut inp, &mut out).unwrap();
+    println!("Unoptimized");
+    bfterp.interpret().unwrap();
+    bfterp.optimize();
+    // println!("{bfterp:?}");
+    println!("Optimized");
+    bfterp.reset();
     bfterp.interpret().unwrap();
 }

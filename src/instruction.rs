@@ -6,7 +6,7 @@ pub enum Instruction {
     Output,
     LoopStart,
     LoopEnd,
-    Nop
+    Nop,
 }
 
 impl Instruction {
@@ -14,7 +14,9 @@ impl Instruction {
         match (*self, *other) {
             (Instruction::Ptr(m1), Instruction::Ptr(m2)) => Some(Instruction::Ptr(m1 + m2)),
             (Instruction::Alu(a1), Instruction::Alu(a2)) => Some(Instruction::Alu(a1 + a2)),
-            (_ ,_) => None,
+            (Instruction::LoopStart, Instruction::LoopEnd) => Some(Instruction::Nop),
+            (Instruction::Nop, instr) => Some(instr),
+            (_, _) => None,
         }
     }
 }

@@ -1,21 +1,27 @@
 use crate::err::BFError;
 use crate::instruction::Instruction;
-use std::io::{Read, Write};
 use std::collections::{HashMap, VecDeque};
+use std::io::{Read, Write};
 use std::slice::from_mut;
 
-pub struct Interpreter<'io> {
+pub struct Interpreter<R, W> {
     instr: usize,
     pointer: usize,
     data: Vec<usize>,
-    program: Vec<Instruction>,
+    pub(crate) program: Vec<Instruction>,
     stack: HashMap<usize, usize>,
-    stdin: &'io mut dyn Read,
-    stdout: &'io mut dyn Write,
+    pub(crate) stdin: R,
+    pub(crate) stdout: W,
 }
 
-impl<'io> Interpreter<'io> {
-    pub fn new(prog: &str, size: usize, input: &'io mut dyn Read, output: &'io mut dyn Write) -> Result<Self, BFError> {
+impl<R, W> std::fmt::Debug for Interpreter<R, W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.program.iter()).finish()
+    }
+}
+
+impl<R: Read, W: Write> Interpreter<R, W> {
+    pub fn new(prog: &str, size: usize, input: R, output: W) -> Result<Self, BFError> {
         let (program, stack) = Self::parse(prog)?;
         Ok(Self {
             instr: 0,
@@ -47,7 +53,7 @@ impl<'io> Interpreter<'io> {
                 }
             }
         }
-        if brackets.len() != 0 {
+        if brackets.is_empty() {
             return Err(BFError::Unmatched);
         }
 
@@ -57,22 +63,36 @@ impl<'io> Interpreter<'io> {
     pub fn optimize(&mut self) {
         // Find a way to do better optimizations than this
         let mut index: usize = 0;
-        loop {
-            if index >= self.program.len() - 1 {
-                break;
-            }
-            let new_inst = self.program[index].combine(&self.program[index+1]);
-            if let Some(instr) = new_inst {
-                self.program[index] = instr;
-                self.program.remove(index+1);
+        let mut new_instructions = Vec::with_capacity(self.program.len());
+        new_instructions.push(Instruction::Nop);
+        for instr in &self.program {
+            if let Some(combined) = new_instructions[index].combine(instr) {
+                new_instructions[index] = combined;
             } else {
+                new_instructions.push(*instr);
                 index += 1;
             }
         }
+        self.program = new_instructions;
+        // Now need to recreate the stack of brackets
+        self.stack.clear();
+        let mut stack = VecDeque::new();
+        for (index, instr) in self.program.iter().enumerate() {
+            match instr {
+                Instruction::LoopStart => stack.push_back(index),
+                Instruction::LoopEnd => {
+                    let jump_index = stack.pop_back().expect("This should be valid");
+                    self.stack.insert(index, jump_index);
+                    self.stack.insert(jump_index, index);
+                }
+                _ => {}
+            }
+        }
     }
+
     pub fn step(&mut self) -> Result<bool, BFError> {
         if self.instr == self.program.len() {
-            return Ok(true)
+            return Ok(true);
         }
         let data_ptr = &mut self.data[self.pointer];
         let mut input: u8 = 0;
@@ -80,26 +100,32 @@ impl<'io> Interpreter<'io> {
             Instruction::Alu(v) => *data_ptr = data_ptr.wrapping_add_signed(v),
             Instruction::Ptr(v) => self.pointer = self.pointer.wrapping_add_signed(v),
             Instruction::LoopStart => {
-                let jump = self.stack.get(&self.instr).expect("Parsing should ensure this");
+                let jump = self
+                    .stack
+                    .get(&self.instr)
+                    .expect("Parsing should ensure this");
                 if *data_ptr == 0 {
                     self.instr = *jump;
                 }
-            },
+            }
             Instruction::LoopEnd => {
-                let jump = self.stack.get(&self.instr).expect("Parsing should ensure this");
+                let jump = self
+                    .stack
+                    .get(&self.instr)
+                    .expect("Parsing should ensure this");
                 if *data_ptr != 0 {
                     self.instr = *jump;
                 }
-            },
+            }
             Instruction::Input => {
                 self.stdin.read_exact(from_mut(&mut input))?;
                 *data_ptr = input as usize;
-            },
+            }
             Instruction::Output => {
                 input = *data_ptr as u8;
                 self.stdout.write_all(from_mut(&mut input))?;
-            },
-            Instruction::Nop => {},
+            }
+            Instruction::Nop => {}
         }
         self.instr += 1;
         Ok(false)
@@ -113,5 +139,10 @@ impl<'io> Interpreter<'io> {
             }
         }
         Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        self.instr = 0;
+        self.data.fill(0);
     }
 }
